@@ -7,14 +7,15 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using AudioSwitcher.Hooks;
+using System.Media;
+using AudioSwitcher.AudioApi.CoreAudio;
 
 namespace AudioSwitcher
 {
-    public class SysTrayApp : Form
-    {
+    public class SysTrayApp : Form {
         [STAThread]
-        public static void Main()
-        {
+        public static void Main() {
             Application.Run(new SysTrayApp());
         }
 
@@ -24,9 +25,10 @@ namespace AudioSwitcher
         private int currentDeviceId;
         private static List<int> qDevices;
 
+        
 
-        public SysTrayApp()
-        {
+
+        public SysTrayApp() {
             qDevices = Settings.Default.ChoosedDevices ?? new List<int>();
             // Create a simple tray menu
             trayMenu = new ContextMenu();
@@ -41,8 +43,7 @@ namespace AudioSwitcher
             trayIcon.Visible = true;
 
             // Count sound-devices
-            foreach (var tuple in GetDevices())
-            {
+            foreach (var tuple in GetDevices()) {
                 deviceCount += 1;
             }
 
@@ -50,21 +51,54 @@ namespace AudioSwitcher
             trayIcon.ContextMenu.Popup += PopulateDeviceList;
 
             // Register MEH on trayicon leftclick
-            trayIcon.MouseUp += new MouseEventHandler(TrayIcon_LeftClick);
+            trayIcon.MouseUp += new MouseEventHandler(NextDevice);
+
+            UserActivityHook actHook;
+
+            actHook = new UserActivityHook(); // crate an instance
+
+            // hang on events
+
+            actHook.KeyDown += new KeyEventHandler(MyKeyDown);
         }
 
-        // Selects next device in list when trayicon is left-clicked
-        private void TrayIcon_LeftClick(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
-            {
+        private void MyKeyDown(object sender, KeyEventArgs e) {
+
+            if (e.KeyData == (Keys.Scroll | Keys.Shift)) {
+                NextDevice();
+                PlayBeep();
+                e.Handled = true;
+            }
+        }
+
+        private void PlayBeep() {
+
+            for (int hz = 100; hz < 5000; hz += 1000) {
+                Console.Beep(hz, 50);
+            }
+
+
+        }
+
+
+        //Selects next device in list when trayicon is left-clicked
+        private void NextDevice(object sender, MouseEventArgs e) {
+            if (e.Button == MouseButtons.Left) {
                 var cur_id = nextId();
                 SelectDevice(cur_id);
-                foreach (var tuple in GetDevices().Where(tuple => cur_id == tuple.Item1))
-                {
-                    trayIcon.Text = "Playing: " + tuple.Item2;
+                foreach (var tuple in GetDevices().Where(tuple => cur_id == tuple.Item1)) {
+                    //trayIcon.Text = "Playing: " + tuple.Item2;
                     break;
                 }
+            }
+        }
+
+        private void NextDevice() {
+            var cur_id = nextId();
+            SelectDevice(cur_id);
+            foreach (var tuple in GetDevices().Where(tuple => cur_id == tuple.Item1)) {
+                //trayIcon.Text = "Playing: " + tuple.Item2;
+                break;
             }
         }
 
@@ -102,11 +136,9 @@ namespace AudioSwitcher
 
                 trayMenu.MenuItems.Add(item);
             }
-
             // Add an exit button
             var exitItem = new MenuItem {Text = "Exit"};
             exitItem.Click += OnExit;
-            trayMenu.MenuItems.Add("-");
             trayMenu.MenuItems.Add(exitItem);
         }
 
@@ -198,5 +230,16 @@ namespace AudioSwitcher
         }
 
         #endregion
+
+        private void InitializeComponent() {
+            this.SuspendLayout();
+            // 
+            // SysTrayApp
+            // 
+            this.ClientSize = new System.Drawing.Size(284, 261);
+            this.Name = "SysTrayApp";
+            this.ResumeLayout(false);
+
+        }
     }
 }
